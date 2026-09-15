@@ -35,6 +35,8 @@ import { getHealth, listModels, streamChat, type ChatMessage, type HealthRespons
 import { activeRequests, supportsCacheSlots } from "@/lib/runtime"
 import { Brain } from "./Brain"
 import { Profiling } from "./Profiling"
+import { Workbench } from "./Workbench"
+import { Companion } from "./Companion"
 import { persistPublicSettings, stored } from "@/lib/storage"
 import { Markdown } from "@/components/Markdown"
 import { cn } from "@/lib/utils"
@@ -47,7 +49,7 @@ const message = (role: ChatMessage["role"], content: string): ChatMessage => {
   return { id, role, content }
 }
 
-export default function App() {
+function DashboardApp() {
   const { t, locale, setLocale, locales } = useLocale()
 
   const servedByEngine = typeof window !== "undefined" && window.location.port !== "5173" && window.location.protocol.startsWith("http")
@@ -100,7 +102,7 @@ export default function App() {
   const [totalTokens, setTotalTokens] = useState({ prompt: 0, completion: 0 })
   const [connecting, setConnecting] = useState(false)
   const [connected, setConnected] = useState(false)
-  const [view, setView] = useState<"chat" | "brain" | "profiling">("chat")
+  const [view, setView] = useState<"chat" | "brain" | "profiling" | "workbench">("chat")
   const [error, setError] = useState("")
   const autoConnected = useRef(false)
   const abortRef = useRef<AbortController | null>(null)
@@ -385,6 +387,7 @@ export default function App() {
             <button className={view === "chat" ? "active" : ""} onClick={() => setView("chat")}><MessageSquareText className="size-3.5" /> {t("nav.chat")}</button>
             <button className={view === "brain" ? "active" : ""} onClick={() => setView("brain")}><BrainCircuit className="size-3.5" /> {t("nav.brain")}</button>
             <button className={view === "profiling" ? "active" : ""} onClick={() => setView("profiling")}><Gauge className="size-3.5" /> {t("nav.profiling")}</button>
+            <button className={view === "workbench" ? "active" : ""} onClick={() => setView("workbench")}><Cpu className="size-3.5" /> Workbench</button>
           </div>
           <div className="top-actions">
               {loading && tokenCount > 0 ? <Badge className="badge-live"><Zap className="size-3 flash" /> {t("topbar.tokens", { n: tokenCount })}</Badge> : null}
@@ -398,7 +401,8 @@ export default function App() {
             </div>
         </header>
 
-        {view === "brain" ? <Brain baseUrl={baseUrl} apiKey={apiKey} connected={connected} />
+        {view === "workbench" ? <Workbench />
+          : view === "brain" ? <Brain baseUrl={baseUrl} apiKey={apiKey} connected={connected} />
           : view === "profiling" ? <Profiling baseUrl={baseUrl} apiKey={apiKey} connected={connected} /> : <>
 
         <div className="conversation">
@@ -462,4 +466,9 @@ export default function App() {
       </main>
     </div>
   )
+}
+
+export default function App() {
+  const isCompanion = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("view") === "companion"
+  return isCompanion ? <Companion /> : <DashboardApp />
 }

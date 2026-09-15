@@ -20,6 +20,20 @@
         "minHeight": 600,
         "center": true,
         "resizable": true
+      },
+      {
+        "label": "companion",
+        "title": "colibrì companion",
+        "url": "?view=companion",
+        "width": 420,
+        "height": 620,
+        "minWidth": 320,
+        "minHeight": 420,
+        "alwaysOnTop": true,
+        "decorations": false,
+        "resizable": true,
+        "skipTaskbar": false,
+        "center": true
       }
     ],
     "security": {
