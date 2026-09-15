@@ -60,10 +60,11 @@ export function Companion() {
 
   return <div className="companion-shell">
     <header className="companion-titlebar" data-tauri-drag-region onPointerDown={(event) => {
-      if (event.button === 0 && event.target === event.currentTarget) dragWindow()
+      const target = event.target as Element
+      if (event.button === 0 && !target.closest("button")) dragWindow()
     }}>
       <div className="companion-brand"><Bot className="size-4" /><strong>colibrì companion</strong><span>{model}</span></div>
-      <div className="companion-window-actions" onPointerDown={(event) => event.stopPropagation()}><GripHorizontal className="size-4 drag-hint" /><button aria-label="Minimize" onClick={() => void nativeWindow?.minimize()}><Minus className="size-3.5" /></button><button aria-label="Close" onClick={() => void nativeWindow?.close()}><X className="size-3.5" /></button></div>
+      <div className="companion-window-actions" onPointerDown={(event) => event.stopPropagation()}><GripHorizontal className="size-4 drag-hint" /><button aria-label="Minimize" onClick={(event) => { event.stopPropagation(); void nativeWindow?.minimize() }}><Minus className="size-3.5" /></button><button aria-label="Close" onClick={(event) => { event.stopPropagation(); void nativeWindow?.close() }}><X className="size-3.5" /></button></div>
     </header>
     <main className="companion-messages">
       {!messages.length ? <div className="companion-empty"><Bot className="size-8" /><strong>Ready when you are.</strong><span>Ask about a project, a command, or the next thing to build.</span></div> : messages.map((item) => <article key={item.id} className={`companion-message ${item.role}`}><span>{item.role === "user" ? "You" : "colibrì"}</span>{item.role === "assistant" ? <Markdown source={item.content || "..."} /> : <p>{item.content}</p>}</article>)}
