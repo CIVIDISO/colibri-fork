@@ -1,0 +1,51 @@
+[
+  {
+    "id": "coding",
+    "name": "Coding",
+    "description": "Inspect repositories, propose changes, and validate implementation plans.",
+    "mode": "read-only",
+    "enabled": true
+  },
+  {
+    "id": "terminal",
+    "name": "Terminal",
+    "description": "Run operator-provided commands inside the selected project.",
+    "mode": "approval-required",
+    "enabled": true
+  },
+  {
+    "id": "files",
+    "name": "Files",
+    "description": "Read project files and, later, apply explicitly approved patches.",
+    "mode": "approval-required",
+    "enabled": true
+  },
+  {
+    "id": "graphify",
+    "name": "Graphify",
+    "description": "Build and query a project knowledge graph when the Graphify skill is available.",
+    "mode": "read-only",
+    "enabled": false
+  },
+  {
+    "id": "browser",
+    "name": "Browser",
+    "description": "Operate a local browser session with visible approval for navigation and actions.",
+    "mode": "approval-required",
+    "enabled": false
+  },
+  {
+    "id": "media",
+    "name": "Image and video",
+    "description": "Connect local image and video generation providers without cloud quotas.",
+    "mode": "approval-required",
+    "enabled": false
+  },
+  {
+    "id": "sandbox",
+    "name": "Sandbox",
+    "description": "Run isolated project tasks in Docker or a VM instead of the host.",
+    "mode": "approval-required",
+    "enabled": false
+  }
+]

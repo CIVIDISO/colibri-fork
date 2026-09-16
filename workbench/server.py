@@ -15,7 +15,10 @@ import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
+from memory_store import MemoryStore
+
 WORKBENCH_DIR = Path(__file__).resolve().parent
+SKILLS_PATH = WORKBENCH_DIR / "skills.json"
 DEFAULT_PROJECT = WORKBENCH_DIR.parent
 MAX_BODY = 2 * 1024 * 1024
 MAX_OUTPUT = 120_000
@@ -82,6 +85,11 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             query = parse_qs(parsed.query)
             if parsed.path == "/api/status":
                 json_response(self, 200, {"ok": True, "project": str(self.root), "files": len(list_files(self.root))})
+            elif parsed.path == "/api/skills":
+                json_response(self, 200, {"skills": json.loads(SKILLS_PATH.read_text(encoding="utf-8"))})
+            elif parsed.path == "/api/memory":
+                limit = int(query.get("limit", [100])[0])
+                json_response(self, 200, {"memory": self.server.memory.list(str(self.root), limit)})
             elif parsed.path == "/api/files":
                 json_response(self, 200, {"files": list_files(self.root)})
             elif parsed.path == "/api/file":
@@ -111,15 +119,21 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                                            env=os.environ.copy())
                 output = (completed.stdout + completed.stderr)[-MAX_OUTPUT:]
                 json_response(self, 200, {"exitCode": completed.returncode, "output": output})
+            elif parsed.path == "/api/memory":
+                row = self.server.memory.add(
+                    str(self.root), body.get("kind", "note"), body.get("content", ""), body.get("source", "operator")
+                )
+                json_response(self, 201, {"memory": row})
             elif parsed.path == "/api/ask":
                 from colibri_workbench import collect_context, request_completion
                 task = str(body.get("task", "")).strip()
                 if not task:
                     raise ValueError("task is required")
                 context, files = collect_context(self.root, task)
+                memories = self.server.memory.list(str(self.root), 20)
                 answer = request_completion(self.server.model_url, self.server.api_key, self.server.model, [
-                    {"role": "system", "content": "You are a local coding agent. Use only supplied repository evidence. Return a concise plan, files to change, and validation commands. Do not claim actions you did not perform."},
-                    {"role": "user", "content": f"Project: {self.root}\n\nTask: {task}\n\nRepository context:\n{context}"},
+                    {"role": "system", "content": "You are a local coding agent. Use only supplied repository evidence and durable project memory. Return a concise plan, files to change, and validation commands. Do not claim actions you did not perform."},
+                    {"role": "user", "content": f"Project: {self.root}\n\nTask: {task}\n\nDurable memory:\n{json.dumps(memories, ensure_ascii=False)}\n\nRepository context:\n{context}"},
                 ])
                 json_response(self, 200, {"answer": answer, "files": files, "model": self.server.model})
             else:
@@ -147,6 +161,7 @@ def main():
     server.model_url = args.model_url.rstrip("/")
     server.model = args.model
     server.api_key = args.api_key
+    server.memory = MemoryStore(WORKBENCH_DIR / "state")
     print(f"Colibri workbench: http://{args.host}:{args.port}/")
     print(f"Project root: {root}")
     server.serve_forever()

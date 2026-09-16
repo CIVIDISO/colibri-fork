@@ -51,6 +51,24 @@ commands you enter. It does not yet apply model-generated patches or provide
 image/video generation; those will be separate provider adapters in the same
 standalone control plane.
 
+## Skills and memory
+
+`skills.json` is the standalone skill registry. Skills declare whether they are
+read-only or require operator approval; disabled skills are placeholders for
+future Graphify, browser, media, and sandbox adapters.
+
+Durable project memory is stored outside target repositories in
+`workbench/state/memory.json`. The control API exposes:
+
+```text
+GET  /api/skills
+GET  /api/memory?limit=100
+POST /api/memory { "kind": "decision", "content": "..." }
+```
+
+The memory file is local runtime state and should not be committed or synced as
+project source.
+
 ## Design boundary
 
 - Colibri is the standalone local model server and dashboard.
