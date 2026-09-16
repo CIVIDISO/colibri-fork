@@ -30,8 +30,13 @@ second PowerShell window, pointing it at whichever project you want Colibri to
 operate on:
 
 ```powershell
-python workbench\server.py --project .\PBOMNI --port 8787
+python workbench\server.py --project . --port 8787
 ```
+
+The launcher defaults to the standalone Colibri checkout as its first project.
+Point it at another project, including Omni, with `COLIBRI_PROJECT` or the
+workbench `--project` option. MCP clients can target another workbench instance
+with `COLIBRI_WORKBENCH_URL`.
 
 Start the dashboard separately:
 

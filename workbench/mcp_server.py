@@ -5,6 +5,7 @@ import json
 import sys
 import urllib.parse
 import urllib.request
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -34,7 +35,7 @@ def call(method, params):
     if method == "tools/call":
         name = params.get("name")
         arguments = params.get("arguments") or {}
-        base = "http://127.0.0.1:8787"
+        base = os.environ.get("COLIBRI_WORKBENCH_URL", "http://127.0.0.1:8787").rstrip("/")
         if name == "project_status":
             data = json.loads(urllib.request.urlopen(base + "/api/status", timeout=10).read())
         elif name == "project_memory":

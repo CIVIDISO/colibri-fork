@@ -5,7 +5,7 @@ cd /d "%~dp0"
 rem Override these variables before launching when paths differ on another computer.
 if not defined OLLAMA_MODEL set "OLLAMA_MODEL=qwen2.5-coder:7b"
 if not defined COLIBRI_MODEL set "COLIBRI_MODEL=C:\Users\Sales\Models\qwen36"
-if not defined COLIBRI_PROJECT set "COLIBRI_PROJECT=%CD%\PBOMNI"
+if not defined COLIBRI_PROJECT set "COLIBRI_PROJECT=%CD%"
 
 where ollama >nul 2>&1 || (
   echo Ollama was not found. Install Ollama, then run this launcher again.
