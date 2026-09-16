@@ -9,7 +9,7 @@ const WORKBENCH_URL = import.meta.env.VITE_WORKBENCH_URL || "http://127.0.0.1:87
 
 type FileResponse = { path: string; content: string }
 type CommandResponse = { exitCode: number; output: string }
-type PendingAction = { id: string; command: string; status: string }
+type PendingAction = { id: string; command?: string; kind?: string; status: string }
 
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(`${WORKBENCH_URL}${path}`)
@@ -38,6 +38,8 @@ export function Workbench() {
   const [output, setOutput] = useState("")
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
   const [answer, setAnswer] = useState("")
+  const [patch, setPatch] = useState("")
+  const [pendingPatch, setPendingPatch] = useState<PendingAction | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
 
@@ -78,6 +80,28 @@ export function Workbench() {
     finally { setBusy(false) }
   }
 
+  const queuePatch = async () => {
+    if (!patch.trim()) return
+    setBusy(true); setError("")
+    try {
+      const result = await postJson<{ action: PendingAction }>("/api/patches", { patch })
+      setPendingPatch(result.action)
+    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
+    finally { setBusy(false) }
+  }
+
+  const approvePatch = async () => {
+    if (!pendingPatch) return
+    setBusy(true); setError("")
+    try {
+      const result = await postJson<{ action: CommandResponse & { status: string } }>(`/api/actions/${pendingPatch.id}/approve`, {})
+      setOutput(`patch ${result.action.status}\n${result.action.output}`)
+      setPendingPatch(null)
+      await refreshFiles()
+    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
+    finally { setBusy(false) }
+  }
+
   const askAgent = async () => {
     if (!task.trim()) return
     setBusy(true); setError("")
@@ -104,7 +128,10 @@ export function Workbench() {
         <div className="panel-title"><Bot className="size-4" /> Ask the local agent</div>
         <Textarea value={task} onChange={(event) => setTask(event.target.value)} placeholder="Inspect Omni's order workflow and identify the next safe change..." />
         <Button onClick={() => void askAgent()} disabled={busy || !task.trim()}><Bot className="size-4" /> {busy ? "Working..." : "Plan task"}</Button>
-        {answer ? <pre className="agent-answer">{answer}</pre> : <p className="panel-hint">Plans are read-only until an apply workflow is explicitly enabled.</p>}
+        {answer ? <pre className="agent-answer">{answer}</pre> : <p className="panel-hint">Plans are read-only until you queue an explicit patch for approval.</p>}
+        <Textarea value={patch} onChange={(event) => setPatch(event.target.value)} placeholder="Paste a unified diff to review and apply..." />
+        <Button variant="secondary" onClick={() => void queuePatch()} disabled={busy || !patch.trim()}>Review patch</Button>
+        {pendingPatch ? <Button className="approve-command" onClick={() => void approvePatch()} disabled={busy}><Play className="size-4" /> Approve and apply patch</Button> : null}
       </section>
       <section className="workbench-panel terminal-panel">
         <div className="panel-title"><TerminalSquare className="size-4" /> Local terminal</div>

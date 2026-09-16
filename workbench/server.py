@@ -156,6 +156,18 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                           "cwd": str(body.get("cwd", ".")), "status": "pending", "project": str(self.root)}
                 self.server.actions[action["id"]] = action
                 json_response(self, 202, {"action": action})
+            elif parsed.path == "/api/patches":
+                patch = str(body.get("patch", ""))
+                if not patch.strip():
+                    raise ValueError("patch is required")
+                check = subprocess.run(["git", "apply", "--check", "--whitespace=nowarn", "-"],
+                                       cwd=self.root, input=patch, capture_output=True, text=True, timeout=30)
+                if check.returncode != 0:
+                    raise ValueError(f"patch rejected: {(check.stderr or check.stdout).strip()[-4000:]}")
+                action = {"id": "act_" + uuid.uuid4().hex, "kind": "patch", "patch": patch,
+                          "status": "pending", "project": str(self.root)}
+                self.server.actions[action["id"]] = action
+                json_response(self, 202, {"action": action})
             elif parsed.path.startswith("/api/actions/") and parsed.path.endswith("/approve"):
                 action_id = parsed.path.split("/")[3]
                 action = self.server.actions.get(action_id)
@@ -179,6 +191,16 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                     with urllib.request.urlopen(request, timeout=60) as result:
                         action.update({"status": "completed", "exitCode": 0,
                                        "output": result.read().decode("utf-8", errors="replace")[-MAX_OUTPUT:]})
+                elif action["kind"] == "patch":
+                    check = subprocess.run(["git", "apply", "--check", "--whitespace=nowarn", "-"],
+                                           cwd=self.root, input=action["patch"], capture_output=True, text=True, timeout=30)
+                    if check.returncode != 0:
+                        raise ValueError(f"patch no longer applies: {(check.stderr or check.stdout).strip()[-4000:]}")
+                    applied = subprocess.run(["git", "apply", "--whitespace=nowarn", "-"],
+                                             cwd=self.root, input=action["patch"], capture_output=True, text=True, timeout=30)
+                    action.update({"status": "completed" if applied.returncode == 0 else "failed",
+                                   "exitCode": applied.returncode,
+                                   "output": (applied.stdout + applied.stderr)[-MAX_OUTPUT:]})
                 else:
                     completed = subprocess.run(command_argv(action["command"]), cwd=cwd, capture_output=True,
                                                text=True, timeout=120, env=os.environ.copy())

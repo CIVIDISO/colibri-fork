@@ -51,10 +51,9 @@ bound to localhost and the command runner uses the selected project as its
 working directory. Do not bind it to a public interface until authentication,
 command approval, and an actual OS sandbox are added.
 
-The current slice can inspect files, plan tasks with the local model, and run
-commands you enter. It does not yet apply model-generated patches or provide
-image/video generation; those will be separate provider adapters in the same
-standalone control plane.
+The workbench can inspect files, plan tasks, queue commands for approval, and
+review/apply valid unified diffs after explicit approval. It does not silently
+write to target projects.
 
 ## Skills and memory
 
@@ -81,6 +80,7 @@ GET  /api/providers
 GET  /api/graph/query?q=How%20does%20the%20workbench%20run%20commands%3F
 POST /api/actions { "command": "npm test" }
 POST /api/actions/{id}/approve
+POST /api/patches { "patch": "diff --git ..." }
 GET  /api/instances
 POST /api/instances { "id": "omni", "project": "C:\\projects\\PBOMNI", "port": 8788 }
 POST /api/instances/{id}/start
