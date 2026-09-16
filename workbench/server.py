@@ -13,6 +13,9 @@ from pathlib import Path
 import subprocess
 import sys
 import uuid
+import webbrowser
+import urllib.error
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -161,11 +164,54 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 if action["status"] != "pending":
                     raise ValueError("action is not pending")
                 cwd = safe_path(self.root, action["cwd"])
-                completed = subprocess.run(command_argv(action["command"]), cwd=cwd, capture_output=True,
-                                           text=True, timeout=120, env=os.environ.copy())
-                action.update({"status": "completed", "exitCode": completed.returncode,
-                               "output": (completed.stdout + completed.stderr)[-MAX_OUTPUT:]})
+                if action["kind"] == "browser":
+                    action["status"] = "completed" if webbrowser.open(action["url"]) else "failed"
+                    action["output"] = action["url"]
+                    action["exitCode"] = 0 if action["status"] == "completed" else 1
+                elif action["kind"] == "sandbox":
+                    completed = subprocess.run(command_argv(action["command"]), cwd=cwd, capture_output=True,
+                                               text=True, timeout=600, env=os.environ.copy())
+                    action.update({"status": "completed", "exitCode": completed.returncode,
+                                   "output": (completed.stdout + completed.stderr)[-MAX_OUTPUT:]})
+                elif action["kind"] == "media":
+                    request = urllib.request.Request(action["url"], data=json.dumps(action["payload"]).encode(),
+                                                     headers={"Content-Type": "application/json"}, method="POST")
+                    with urllib.request.urlopen(request, timeout=60) as result:
+                        action.update({"status": "completed", "exitCode": 0,
+                                       "output": result.read().decode("utf-8", errors="replace")[-MAX_OUTPUT:]})
+                else:
+                    completed = subprocess.run(command_argv(action["command"]), cwd=cwd, capture_output=True,
+                                               text=True, timeout=120, env=os.environ.copy())
+                    action.update({"status": "completed", "exitCode": completed.returncode,
+                                   "output": (completed.stdout + completed.stderr)[-MAX_OUTPUT:]})
                 json_response(self, 200, {"action": action})
+            elif parsed.path == "/api/browser/open":
+                url = str(body.get("url", "")).strip()
+                if not url.startswith(("http://", "https://")):
+                    raise ValueError("browser URL must use http or https")
+                action = {"id": "act_" + uuid.uuid4().hex, "kind": "browser", "url": url,
+                          "status": "pending", "project": str(self.root)}
+                self.server.actions[action["id"]] = action
+                json_response(self, 202, {"action": action})
+            elif parsed.path == "/api/sandbox/run":
+                image = str(body.get("image", "")).strip()
+                command = str(body.get("command", "")).strip()
+                if not image or not command:
+                    raise ValueError("image and command are required")
+                action = {"id": "act_" + uuid.uuid4().hex, "kind": "sandbox",
+                          "command": f"docker run --rm -v \"{self.root}:\\workspace\" -w /workspace {image} {command}",
+                          "cwd": ".", "status": "pending", "project": str(self.root)}
+                self.server.actions[action["id"]] = action
+                json_response(self, 202, {"action": action})
+            elif parsed.path == "/api/media/queue":
+                url = str(body.get("url", "http://127.0.0.1:8188/prompt")).strip()
+                payload = body.get("payload")
+                if not isinstance(payload, dict) or not url.startswith(("http://", "https://")):
+                    raise ValueError("media url and object payload are required")
+                action = {"id": "act_" + uuid.uuid4().hex, "kind": "media", "url": url,
+                          "payload": payload, "status": "pending", "project": str(self.root)}
+                self.server.actions[action["id"]] = action
+                json_response(self, 202, {"action": action})
             elif parsed.path == "/api/instances":
                 instance = {"id": str(body.get("id") or "instance-" + uuid.uuid4().hex[:8]),
                             "project": str(Path(body.get("project", self.root)).expanduser().resolve()),
@@ -174,6 +220,27 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                             "port": int(body.get("port", 8787)), "status": "configured"}
                 self.server.instances[instance["id"]] = instance
                 json_response(self, 201, {"instance": instance})
+            elif parsed.path.startswith("/api/instances/") and parsed.path.endswith("/start"):
+                instance_id = parsed.path.split("/")[3]
+                instance = self.server.instances.get(instance_id)
+                if not instance:
+                    raise ValueError("instance does not exist")
+                if instance.get("processId"):
+                    raise ValueError("instance is already running")
+                process = subprocess.Popen([sys.executable, str(WORKBENCH_DIR / "server.py"),
+                                            "--project", instance["project"], "--port", str(instance["port"]),
+                                            "--model-url", instance["modelUrl"], "--model", instance["model"]])
+                instance.update({"processId": process.pid, "status": "running"})
+                json_response(self, 200, {"instance": instance})
+            elif parsed.path.startswith("/api/instances/") and parsed.path.endswith("/stop"):
+                instance_id = parsed.path.split("/")[3]
+                instance = self.server.instances.get(instance_id)
+                if not instance:
+                    raise ValueError("instance does not exist")
+                if instance.get("processId"):
+                    subprocess.run(["taskkill", "/PID", str(instance["processId"]), "/T", "/F"], capture_output=True)
+                instance.update({"processId": None, "status": "stopped"})
+                json_response(self, 200, {"instance": instance})
             elif parsed.path == "/api/memory":
                 row = self.server.memory.add(
                     str(self.root), body.get("kind", "note"), body.get("content", ""), body.get("source", "operator")

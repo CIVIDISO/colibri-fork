@@ -78,11 +78,18 @@ POST /api/actions { "command": "npm test" }
 POST /api/actions/{id}/approve
 GET  /api/instances
 POST /api/instances { "id": "omni", "project": "C:\\projects\\PBOMNI", "port": 8788 }
+POST /api/instances/{id}/start
+POST /api/instances/{id}/stop
+POST /api/browser/open { "url": "https://example.com" }
+POST /api/sandbox/run { "image": "python:3.12", "command": "python --version" }
+POST /api/media/queue { "url": "http://127.0.0.1:8188/prompt", "payload": {} }
 ```
 
 Terminal actions are pending until explicitly approved. Browser, Docker/VM,
-and ComfyUI adapters are registered as disabled providers until their isolated
-execution and approval boundaries are implemented.
+Docker/VM, and ComfyUI adapters also return pending actions and never execute
+until `/api/actions/{id}/approve` is called. `workbench/mcp_server.py` exposes
+read-only project status, memory, and Graphify tools over MCP stdio for clients
+that support MCP.
 
 ## Design boundary
 
