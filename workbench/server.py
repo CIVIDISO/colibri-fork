@@ -104,6 +104,8 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             query = parse_qs(parsed.query)
             if parsed.path == "/api/status":
                 json_response(self, 200, {"ok": True, "project": str(self.root), "files": len(list_files(self.root))})
+            elif parsed.path == "/api/decisions":
+                json_response(self, 200, {"decisions": self.server.memory.list(str(self.root), 100)})
             elif parsed.path == "/api/skills":
                 json_response(self, 200, {"skills": load_json(SKILLS_PATH, [])})
             elif parsed.path == "/api/providers":
@@ -269,6 +271,11 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                     str(self.root), body.get("kind", "note"), body.get("content", ""), body.get("source", "operator")
                 )
                 json_response(self, 201, {"memory": row})
+            elif parsed.path == "/api/decide":
+                from decision_engine import decide
+                result = decide(str(body.get("task", "")))
+                row = self.server.memory.add(str(self.root), "decision", json.dumps(result), "decision-engine")
+                json_response(self, 200, {"decision": result, "memory": row})
             elif parsed.path == "/api/ask":
                 from colibri_workbench import collect_context, request_completion
                 task = str(body.get("task", "")).strip()

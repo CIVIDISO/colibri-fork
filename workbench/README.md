@@ -77,6 +77,8 @@ Additional control-plane endpoints:
 
 ```text
 GET  /api/providers
+POST /api/decide { "task": "Fix the parser and run tests" }
+GET  /api/decisions
 GET  /api/graph/query?q=How%20does%20the%20workbench%20run%20commands%3F
 POST /api/actions { "command": "npm test" }
 POST /api/actions/{id}/approve

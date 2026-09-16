@@ -1,5 +1,6 @@
 [
   {"id":"ollama","kind":"llm","baseUrl":"http://127.0.0.1:11434/v1","status":"local","enabled":true},
+  {"id":"local-decision","kind":"decision","baseUrl":"workbench://decision-engine","status":"local-rules","enabled":true},
   {"id":"colibri","kind":"llm","baseUrl":"http://127.0.0.1:8000/v1","status":"local","enabled":true},
   {"id":"typesafe-jev","kind":"decision","baseUrl":"env:TYPESAFE_BASE_URL","status":"early-access-contract-pending","enabled":false},
   {"id":"playwright","kind":"browser","baseUrl":"local-process","status":"adapter-planned","enabled":false},
