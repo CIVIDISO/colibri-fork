@@ -7,6 +7,7 @@ PBOMNI and any target project's runtime.
 """
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import os
 from pathlib import Path
@@ -280,6 +281,29 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                     {"role": "user", "content": f"Project: {self.root}\n\nTask: {task}\n\nDurable memory:\n{json.dumps(memories, ensure_ascii=False)}\n\nRepository context:\n{context}"},
                 ])
                 json_response(self, 200, {"answer": answer, "files": files, "model": self.server.model})
+            elif parsed.path == "/api/agents/run":
+                from colibri_workbench import collect_context, request_completion
+                tasks = body.get("agents")
+                if not isinstance(tasks, list) or not tasks:
+                    raise ValueError("agents must be a non-empty list")
+                context, files = collect_context(self.root, str(body.get("brief", "")))
+                def run_agent(item):
+                    role = str(item.get("role", "agent"))
+                    task = str(item.get("task", "")).strip()
+                    if not task:
+                        return {"role": role, "error": "task is required"}
+                    answer = request_completion(self.server.model_url, self.server.api_key, self.server.model, [
+                        {"role": "system", "content": f"You are the {role} in a local coding agent swarm. Work independently, cite repository evidence, and return findings for the coordinator. Do not claim changes you did not make."},
+                        {"role": "user", "content": f"Shared project brief: {body.get('brief', '')}\n\nYour role task: {task}\n\nShared repository context:\n{context}"},
+                    ])
+                    return {"role": role, "task": task, "answer": answer, "files": files}
+                results = []
+                with ThreadPoolExecutor(max_workers=min(8, len(tasks))) as pool:
+                    futures = [pool.submit(run_agent, item) for item in tasks]
+                    for future in as_completed(futures):
+                        results.append(future.result())
+                results.sort(key=lambda item: item.get("role", ""))
+                json_response(self, 200, {"results": results, "model": self.server.model})
             else:
                 json_response(self, 404, {"error": "not found"})
         except subprocess.TimeoutExpired:

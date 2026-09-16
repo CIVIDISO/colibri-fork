@@ -37,6 +37,7 @@ import { Brain } from "./Brain"
 import { Profiling } from "./Profiling"
 import { Workbench } from "./Workbench"
 import { Companion } from "./Companion"
+import { Guide } from "./Guide"
 import { persistPublicSettings, stored } from "@/lib/storage"
 import { Markdown } from "@/components/Markdown"
 import { cn } from "@/lib/utils"
@@ -102,7 +103,7 @@ function DashboardApp() {
   const [totalTokens, setTotalTokens] = useState({ prompt: 0, completion: 0 })
   const [connecting, setConnecting] = useState(false)
   const [connected, setConnected] = useState(false)
-  const [view, setView] = useState<"chat" | "brain" | "profiling" | "workbench">("chat")
+  const [view, setView] = useState<"chat" | "brain" | "profiling" | "workbench" | "guide">("chat")
   const [error, setError] = useState("")
   const autoConnected = useRef(false)
   const abortRef = useRef<AbortController | null>(null)
@@ -388,6 +389,7 @@ function DashboardApp() {
             <button className={view === "brain" ? "active" : ""} onClick={() => setView("brain")}><BrainCircuit className="size-3.5" /> {t("nav.brain")}</button>
             <button className={view === "profiling" ? "active" : ""} onClick={() => setView("profiling")}><Gauge className="size-3.5" /> {t("nav.profiling")}</button>
             <button className={view === "workbench" ? "active" : ""} onClick={() => setView("workbench")}><Cpu className="size-3.5" /> Workbench</button>
+            <button className={view === "guide" ? "active" : ""} onClick={() => setView("guide")}><Feather className="size-3.5" /> Guide</button>
           </div>
           <div className="top-actions">
               {loading && tokenCount > 0 ? <Badge className="badge-live"><Zap className="size-3 flash" /> {t("topbar.tokens", { n: tokenCount })}</Badge> : null}
@@ -401,7 +403,8 @@ function DashboardApp() {
             </div>
         </header>
 
-        {view === "workbench" ? <Workbench />
+        {view === "guide" ? <Guide />
+          : view === "workbench" ? <Workbench />
           : view === "brain" ? <Brain baseUrl={baseUrl} apiKey={apiKey} connected={connected} />
           : view === "profiling" ? <Profiling baseUrl={baseUrl} apiKey={apiKey} connected={connected} /> : <>
 

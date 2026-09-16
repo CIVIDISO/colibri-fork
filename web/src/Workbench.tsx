@@ -40,6 +40,9 @@ export function Workbench() {
   const [answer, setAnswer] = useState("")
   const [patch, setPatch] = useState("")
   const [pendingPatch, setPendingPatch] = useState<PendingAction | null>(null)
+  const [swarmBrief, setSwarmBrief] = useState("")
+  const [swarmTasks, setSwarmTasks] = useState("investigator: map the relevant code path\ntester: identify the cheapest validation\nreviewer: list risks and edge cases")
+  const [swarmResults, setSwarmResults] = useState<Array<{ role: string; answer?: string; error?: string }>>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
 
@@ -110,6 +113,18 @@ export function Workbench() {
     finally { setBusy(false) }
   }
 
+  const runSwarm = async () => {
+    const agents = swarmTasks.split(/\r?\n/).map((line) => {
+      const [role, ...rest] = line.split(":")
+      return { role: role.trim(), task: rest.join(":").trim() }
+    }).filter((item) => item.role && item.task)
+    if (!agents.length) return
+    setBusy(true); setError("")
+    try { setSwarmResults((await postJson<{ results: Array<{ role: string; answer?: string; error?: string }> }>("/api/agents/run", { brief: swarmBrief, agents })).results) }
+    catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
+    finally { setBusy(false) }
+  }
+
   return <section className="workbench-view">
     <header className="workbench-header">
       <div><span className="eyebrow">LOCAL CONTROL PLANE</span><h2>Project workbench</h2><p>Operate a selected project with your own model, terminal, and visual context.</p></div>
@@ -132,6 +147,13 @@ export function Workbench() {
         <Textarea value={patch} onChange={(event) => setPatch(event.target.value)} placeholder="Paste a unified diff to review and apply..." />
         <Button variant="secondary" onClick={() => void queuePatch()} disabled={busy || !patch.trim()}>Review patch</Button>
         {pendingPatch ? <Button className="approve-command" onClick={() => void approvePatch()} disabled={busy}><Play className="size-4" /> Approve and apply patch</Button> : null}
+      </section>
+      <section className="workbench-panel swarm-panel">
+        <div className="panel-title"><Bot className="size-4" /> Agent swarm <span>{swarmResults.length || "parallel"}</span></div>
+        <Textarea value={swarmBrief} onChange={(event) => setSwarmBrief(event.target.value)} placeholder="Shared brief: what should the team solve?" />
+        <Textarea value={swarmTasks} onChange={(event) => setSwarmTasks(event.target.value)} placeholder="one-role: one task per line" />
+        <Button onClick={() => void runSwarm()} disabled={busy}><Bot className="size-4" /> {busy ? "Agents working..." : "Run agents together"}</Button>
+        {swarmResults.length ? <div className="swarm-results">{swarmResults.map((result) => <article key={result.role}><strong>{result.role}</strong><pre>{result.answer || result.error}</pre></article>)}</div> : <p className="panel-hint">Each line is role: task. Results are independent reports you can compare before applying anything.</p>}
       </section>
       <section className="workbench-panel terminal-panel">
         <div className="panel-title"><TerminalSquare className="size-4" /> Local terminal</div>
