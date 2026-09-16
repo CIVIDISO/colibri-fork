@@ -1,0 +1,7 @@
+[
+  {"id":"ollama","kind":"llm","baseUrl":"http://127.0.0.1:11434/v1","status":"local","enabled":true},
+  {"id":"colibri","kind":"llm","baseUrl":"http://127.0.0.1:8000/v1","status":"local","enabled":true},
+  {"id":"playwright","kind":"browser","baseUrl":"local-process","status":"adapter-planned","enabled":false},
+  {"id":"docker","kind":"sandbox","baseUrl":"local-daemon","status":"adapter-planned","enabled":false},
+  {"id":"comfyui","kind":"image-video","baseUrl":"http://127.0.0.1:8188","status":"adapter-planned","enabled":false}
+]

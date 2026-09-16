@@ -69,6 +69,21 @@ POST /api/memory { "kind": "decision", "content": "..." }
 The memory file is local runtime state and should not be committed or synced as
 project source.
 
+Additional control-plane endpoints:
+
+```text
+GET  /api/providers
+GET  /api/graph/query?q=How%20does%20the%20workbench%20run%20commands%3F
+POST /api/actions { "command": "npm test" }
+POST /api/actions/{id}/approve
+GET  /api/instances
+POST /api/instances { "id": "omni", "project": "C:\\projects\\PBOMNI", "port": 8788 }
+```
+
+Terminal actions are pending until explicitly approved. Browser, Docker/VM,
+and ComfyUI adapters are registered as disabled providers until their isolated
+execution and approval boundaries are implemented.
+
 ## Design boundary
 
 - Colibri is the standalone local model server and dashboard.

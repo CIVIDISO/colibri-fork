@@ -7,6 +7,7 @@ web/node_modules/
 web/dist/
 web/*.tsbuildinfo
 workbench/state/
+graphify-out/
 desktop/src-tauri/target/
 desktop/src-tauri/gen/
 

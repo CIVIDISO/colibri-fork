@@ -25,7 +25,7 @@
     "name": "Graphify",
     "description": "Build and query a project knowledge graph when the Graphify skill is available.",
     "mode": "read-only",
-    "enabled": false
+    "enabled": true
   },
   {
     "id": "browser",

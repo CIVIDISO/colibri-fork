@@ -9,6 +9,7 @@ const WORKBENCH_URL = import.meta.env.VITE_WORKBENCH_URL || "http://127.0.0.1:87
 
 type FileResponse = { path: string; content: string }
 type CommandResponse = { exitCode: number; output: string }
+type PendingAction = { id: string; command: string; status: string }
 
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(`${WORKBENCH_URL}${path}`)
@@ -35,6 +36,7 @@ export function Workbench() {
   const [task, setTask] = useState("")
   const [command, setCommand] = useState("")
   const [output, setOutput] = useState("")
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
   const [answer, setAnswer] = useState("")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
@@ -56,8 +58,23 @@ export function Workbench() {
   const runCommand = async () => {
     if (!command.trim()) return
     setBusy(true); setError("")
-    try { const result = await postJson<CommandResponse>("/api/command", { command }); setOutput(`exit ${result.exitCode}\n${result.output}`) }
+    try {
+      const result = await postJson<{ action: PendingAction }>("/api/actions", { command })
+      setPendingAction(result.action)
+      setOutput("Approval required before this command runs.")
+    }
     catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
+    finally { setBusy(false) }
+  }
+
+  const approveCommand = async () => {
+    if (!pendingAction) return
+    setBusy(true); setError("")
+    try {
+      const result = await postJson<{ action: CommandResponse & { status: string } }>(`/api/actions/${pendingAction.id}/approve`, {})
+      setOutput(`exit ${result.action.exitCode}\n${result.action.output}`)
+      setPendingAction(null)
+    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
     finally { setBusy(false) }
   }
 
@@ -91,7 +108,8 @@ export function Workbench() {
       </section>
       <section className="workbench-panel terminal-panel">
         <div className="panel-title"><TerminalSquare className="size-4" /> Local terminal</div>
-        <div className="command-row"><Input value={command} onChange={(event) => setCommand(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void runCommand() }} placeholder="npm test" /><Button size="icon" aria-label="Run command" onClick={() => void runCommand()} disabled={busy || !command.trim()}><Play className="size-4" /></Button></div>
+        <div className="command-row"><Input value={command} onChange={(event) => setCommand(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void runCommand() }} placeholder="npm test" /><Button size="icon" aria-label="Queue command" onClick={() => void runCommand()} disabled={busy || !command.trim()}><Play className="size-4" /></Button></div>
+        {pendingAction ? <Button className="approve-command" onClick={() => void approveCommand()} disabled={busy}><Play className="size-4" /> Approve and run</Button> : null}
         <pre className="terminal-output">{output || "Command output will appear here."}</pre>
       </section>
     </div>

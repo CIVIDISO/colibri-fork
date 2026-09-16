@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -19,6 +20,7 @@ from memory_store import MemoryStore
 
 WORKBENCH_DIR = Path(__file__).resolve().parent
 SKILLS_PATH = WORKBENCH_DIR / "skills.json"
+PROVIDERS_PATH = WORKBENCH_DIR / "providers.json"
 DEFAULT_PROJECT = WORKBENCH_DIR.parent
 MAX_BODY = 2 * 1024 * 1024
 MAX_OUTPUT = 120_000
@@ -60,6 +62,19 @@ def json_response(handler, status, payload):
     handler.wfile.write(data)
 
 
+def load_json(path, fallback):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return fallback
+
+
+def command_argv(command):
+    if os.name == "nt":
+        return ["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", command]
+    return ["/bin/sh", "-lc", command]
+
+
 class WorkbenchHandler(BaseHTTPRequestHandler):
     server_version = "ColibriWorkbench/0.1"
 
@@ -86,7 +101,18 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             if parsed.path == "/api/status":
                 json_response(self, 200, {"ok": True, "project": str(self.root), "files": len(list_files(self.root))})
             elif parsed.path == "/api/skills":
-                json_response(self, 200, {"skills": json.loads(SKILLS_PATH.read_text(encoding="utf-8"))})
+                json_response(self, 200, {"skills": load_json(SKILLS_PATH, [])})
+            elif parsed.path == "/api/providers":
+                json_response(self, 200, {"providers": load_json(PROVIDERS_PATH, [])})
+            elif parsed.path == "/api/instances":
+                json_response(self, 200, {"instances": self.server.instances})
+            elif parsed.path == "/api/graph/query":
+                question = query.get("q", [""])[0].strip()
+                if not question:
+                    raise ValueError("q is required")
+                completed = subprocess.run(["graphify", "query", question, "--budget", "1200"],
+                                           cwd=self.server.graph_root, capture_output=True, text=True, timeout=180)
+                json_response(self, 200, {"exitCode": completed.returncode, "answer": completed.stdout[-MAX_OUTPUT:], "error": completed.stderr[-4000:]})
             elif parsed.path == "/api/memory":
                 limit = int(query.get("limit", [100])[0])
                 json_response(self, 200, {"memory": self.server.memory.list(str(self.root), limit)})
@@ -114,11 +140,40 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 cwd = safe_path(self.root, str(body.get("cwd", ".")))
                 if not cwd.is_dir():
                     raise ValueError("working directory does not exist")
-                completed = subprocess.run(command, cwd=cwd, shell=True, capture_output=True,
+                completed = subprocess.run(command_argv(command), cwd=cwd, capture_output=True,
                                            text=True, timeout=min(max(int(body.get("timeout", 120)), 1), 600),
                                            env=os.environ.copy())
                 output = (completed.stdout + completed.stderr)[-MAX_OUTPUT:]
                 json_response(self, 200, {"exitCode": completed.returncode, "output": output})
+            elif parsed.path == "/api/actions":
+                command = str(body.get("command", "")).strip()
+                if not command:
+                    raise ValueError("command is required")
+                action = {"id": "act_" + uuid.uuid4().hex, "kind": "terminal", "command": command,
+                          "cwd": str(body.get("cwd", ".")), "status": "pending", "project": str(self.root)}
+                self.server.actions[action["id"]] = action
+                json_response(self, 202, {"action": action})
+            elif parsed.path.startswith("/api/actions/") and parsed.path.endswith("/approve"):
+                action_id = parsed.path.split("/")[3]
+                action = self.server.actions.get(action_id)
+                if not action:
+                    raise ValueError("action does not exist")
+                if action["status"] != "pending":
+                    raise ValueError("action is not pending")
+                cwd = safe_path(self.root, action["cwd"])
+                completed = subprocess.run(command_argv(action["command"]), cwd=cwd, capture_output=True,
+                                           text=True, timeout=120, env=os.environ.copy())
+                action.update({"status": "completed", "exitCode": completed.returncode,
+                               "output": (completed.stdout + completed.stderr)[-MAX_OUTPUT:]})
+                json_response(self, 200, {"action": action})
+            elif parsed.path == "/api/instances":
+                instance = {"id": str(body.get("id") or "instance-" + uuid.uuid4().hex[:8]),
+                            "project": str(Path(body.get("project", self.root)).expanduser().resolve()),
+                            "modelUrl": str(body.get("modelUrl", self.server.model_url)),
+                            "model": str(body.get("model", self.server.model)),
+                            "port": int(body.get("port", 8787)), "status": "configured"}
+                self.server.instances[instance["id"]] = instance
+                json_response(self, 201, {"instance": instance})
             elif parsed.path == "/api/memory":
                 row = self.server.memory.add(
                     str(self.root), body.get("kind", "note"), body.get("content", ""), body.get("source", "operator")
@@ -162,6 +217,9 @@ def main():
     server.model = args.model
     server.api_key = args.api_key
     server.memory = MemoryStore(WORKBENCH_DIR / "state")
+    server.graph_root = WORKBENCH_DIR.parent
+    server.actions = {}
+    server.instances = {}
     print(f"Colibri workbench: http://{args.host}:{args.port}/")
     print(f"Project root: {root}")
     server.serve_forever()
