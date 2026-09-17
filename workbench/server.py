@@ -21,6 +21,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from memory_store import MemoryStore
+from backtest import run_sma_backtest
+from market_data import yahoo_candles
 from paper_trading import PaperAccount
 
 WORKBENCH_DIR = Path(__file__).resolve().parent
@@ -109,6 +111,9 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 json_response(self, 200, {"decisions": self.server.memory.list(str(self.root), 100)})
             elif parsed.path == "/api/trading/account":
                 json_response(self, 200, {"account": self.server.paper_account.snapshot()})
+            elif parsed.path == "/api/trading/market-data":
+                data = yahoo_candles(query.get("symbol", [""])[0], query.get("period", ["6mo"])[0], query.get("interval", ["1d"])[0])
+                json_response(self, 200, data)
             elif parsed.path == "/api/skills":
                 json_response(self, 200, {"skills": load_json(SKILLS_PATH, [])})
             elif parsed.path == "/api/providers":
@@ -247,6 +252,16 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 json_response(self, 200, {"account": account})
             elif parsed.path == "/api/trading/reset":
                 json_response(self, 200, {"account": self.server.paper_account.reset()})
+            elif parsed.path == "/api/trading/backtest":
+                candles = body.get("candles")
+                if not candles and body.get("symbol"):
+                    candles = yahoo_candles(body["symbol"], body.get("period", "6mo"), body.get("interval", "1d"))["candles"]
+                result = run_sma_backtest(candles, body.get("fast", 10), body.get("slow", 30), body.get("startingCash", 100000))
+                json_response(self, 200, {"backtest": result})
+            elif parsed.path == "/api/trading/judgment":
+                from typesafe_client import evaluate
+                result = evaluate(body.get("state", {}), body.get("questions", {}))
+                json_response(self, 200, {"judgment": result})
             elif parsed.path == "/api/instances":
                 instance = {"id": str(body.get("id") or "instance-" + uuid.uuid4().hex[:8]),
                             "project": str(Path(body.get("project", self.root)).expanduser().resolve()),

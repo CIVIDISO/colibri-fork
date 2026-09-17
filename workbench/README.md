@@ -93,6 +93,9 @@ POST /api/media/queue { "url": "http://127.0.0.1:8188/prompt", "payload": {} }
 GET  /api/trading/account
 POST /api/trading/order { "symbol": "AAPL", "side": "buy", "quantity": 1, "price": 100 }
 POST /api/trading/reset
+GET  /api/trading/market-data?symbol=AAPL&period=6mo&interval=1d
+POST /api/trading/backtest { "symbol": "AAPL", "fast": 10, "slow": 30 }
+POST /api/trading/judgment { "state": {}, "questions": {} }
 ```
 
 Terminal actions are pending until explicitly approved. Browser, Docker/VM,
@@ -105,6 +108,12 @@ Paper trading is deterministic local simulation only: `$100,000` starting cash,
 `$5,000` maximum order value, no shorting, no broker credentials, no withdrawals,
 and no live orders. Use it for strategy experiments and backtests before any
 separate broker integration is considered.
+
+Market data is read-only and currently uses Yahoo Finance chart data. Backtests
+use a long-only SMA crossover with no leverage, fees, or slippage yet; treat the
+metrics as research output, not a promise of future performance. The TypeSafe
+route is optional and requires `TYPESAFE_API_KEY` on the workbench server; the
+key is never accepted from the browser.
 
 ## Design boundary
 
