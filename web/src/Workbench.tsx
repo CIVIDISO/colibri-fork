@@ -10,6 +10,7 @@ const WORKBENCH_URL = import.meta.env.VITE_WORKBENCH_URL || "http://127.0.0.1:87
 type FileResponse = { path: string; content: string }
 type CommandResponse = { exitCode: number; output: string }
 type PendingAction = { id: string; command?: string; kind?: string; status: string }
+type Decision = { decision: string; confidence: number; risk: string; nextAgent: string; needsApproval: boolean; reason: string }
 
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(`${WORKBENCH_URL}${path}`)
@@ -29,6 +30,13 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   return result as T
 }
 
+function swarmTasksFor(decision: Decision) {
+  const primary = `${decision.nextAgent}: investigate and propose the safest next step`
+  if (decision.decision === "patch") return `${primary}\nreviewer: inspect the proposed change for regressions\ntester: identify the cheapest validation`
+  if (decision.decision === "test") return `${primary}\nreviewer: identify gaps in the validation plan`
+  return `${primary}\nreviewer: challenge the recommendation and list risks\ntester: identify the cheapest validation`
+}
+
 export function Workbench() {
   const [files, setFiles] = useState<string[]>([])
   const [selected, setSelected] = useState("")
@@ -43,6 +51,7 @@ export function Workbench() {
   const [swarmBrief, setSwarmBrief] = useState("")
   const [swarmTasks, setSwarmTasks] = useState("investigator: map the relevant code path\ntester: identify the cheapest validation\nreviewer: list risks and edge cases")
   const [swarmResults, setSwarmResults] = useState<Array<{ role: string; answer?: string; error?: string }>>([])
+  const [decision, setDecision] = useState<Decision | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
 
@@ -108,7 +117,23 @@ export function Workbench() {
   const askAgent = async () => {
     if (!task.trim()) return
     setBusy(true); setError("")
-    try { setAnswer((await postJson<{ answer: string }>("/api/ask", { task })).answer) }
+    try {
+      const assessed = (await postJson<{ decision: Decision }>("/api/decide", { task })).decision
+      setDecision(assessed)
+      setAnswer((await postJson<{ answer: string }>("/api/ask", { task })).answer)
+    }
+    catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
+    finally { setBusy(false) }
+  }
+
+  const assessTask = async () => {
+    if (!task.trim()) return
+    setBusy(true); setError("")
+    try {
+      const assessed = (await postJson<{ decision: Decision }>("/api/decide", { task })).decision
+      setDecision(assessed)
+      setSwarmTasks(swarmTasksFor(assessed))
+    }
     catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
     finally { setBusy(false) }
   }
@@ -120,7 +145,10 @@ export function Workbench() {
     }).filter((item) => item.role && item.task)
     if (!agents.length) return
     setBusy(true); setError("")
-    try { setSwarmResults((await postJson<{ results: Array<{ role: string; answer?: string; error?: string }> }>("/api/agents/run", { brief: swarmBrief, agents })).results) }
+    try {
+      if (task.trim() && !decision) setDecision((await postJson<{ decision: Decision }>("/api/decide", { task })).decision)
+      setSwarmResults((await postJson<{ results: Array<{ role: string; answer?: string; error?: string }> }>("/api/agents/run", { brief: swarmBrief || task, agents })).results)
+    }
     catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
     finally { setBusy(false) }
   }
@@ -142,6 +170,12 @@ export function Workbench() {
       <section className="workbench-panel agent-panel">
         <div className="panel-title"><Bot className="size-4" /> Ask the local agent</div>
         <Textarea value={task} onChange={(event) => setTask(event.target.value)} placeholder="Inspect Omni's order workflow and identify the next safe change..." />
+        <Button variant="secondary" onClick={() => void assessTask()} disabled={busy || !task.trim()}>Assess task</Button>
+        {decision ? <div className="decision-card">
+          <div className="decision-heading"><strong>{decision.decision}</strong><span>{decision.nextAgent}</span></div>
+          <div className="decision-meta"><span>Risk: {decision.risk}</span><span>Confidence: {Math.round(decision.confidence * 100)}%</span><span>{decision.needsApproval ? "Approval required" : "Read-only"}</span></div>
+          <p>{decision.reason}</p>
+        </div> : null}
         <Button onClick={() => void askAgent()} disabled={busy || !task.trim()}><Bot className="size-4" /> {busy ? "Working..." : "Plan task"}</Button>
         {answer ? <pre className="agent-answer">{answer}</pre> : <p className="panel-hint">Plans are read-only until you queue an explicit patch for approval.</p>}
         <Textarea value={patch} onChange={(event) => setPatch(event.target.value)} placeholder="Paste a unified diff to review and apply..." />
@@ -150,6 +184,7 @@ export function Workbench() {
       </section>
       <section className="workbench-panel swarm-panel">
         <div className="panel-title"><Bot className="size-4" /> Agent swarm <span>{swarmResults.length || "parallel"}</span></div>
+        {decision ? <p className="panel-hint">Recommended route: <strong>{decision.nextAgent}</strong>. Add roles below to have independent agents challenge the result.</p> : null}
         <Textarea value={swarmBrief} onChange={(event) => setSwarmBrief(event.target.value)} placeholder="Shared brief: what should the team solve?" />
         <Textarea value={swarmTasks} onChange={(event) => setSwarmTasks(event.target.value)} placeholder="one-role: one task per line" />
         <Button onClick={() => void runSwarm()} disabled={busy}><Bot className="size-4" /> {busy ? "Agents working..." : "Run agents together"}</Button>
