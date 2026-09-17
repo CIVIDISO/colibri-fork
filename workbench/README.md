@@ -92,8 +92,10 @@ POST /api/sandbox/run { "image": "python:3.12", "command": "python --version" }
 POST /api/media/queue { "url": "http://127.0.0.1:8188/prompt", "payload": {} }
 GET  /api/trading/account
 POST /api/trading/order { "symbol": "AAPL", "side": "buy", "quantity": 1, "price": 100 }
+POST /api/trading/order { "symbol": "AAPL", "side": "buy", "quantity": 1, "price": 100, "dataLagSeconds": 420, "maxLagSeconds": 300 }
 POST /api/trading/reset
 GET  /api/trading/market-data?symbol=AAPL&period=6mo&interval=1d
+GET  /api/trading/market-scan?symbols=SPY,QQQ,BTC-USD&period=1mo&interval=1d&maxLagSeconds=172800
 POST /api/trading/backtest { "symbol": "AAPL", "fast": 10, "slow": 30 }
 POST /api/trading/judgment { "state": {}, "questions": {} }
 ```
@@ -109,7 +111,15 @@ Paper trading is deterministic local simulation only: `$100,000` starting cash,
 and no live orders. Use it for strategy experiments and backtests before any
 separate broker integration is considered.
 
-Market data is read-only and currently uses Yahoo Finance chart data. Backtests
+Orders may include `dataLagSeconds` and `maxLagSeconds`; when the observed quote
+age exceeds the allowed maximum, the paper order is rejected as stale.
+
+Market data is read-only and currently uses Yahoo Finance chart data. The default
+scan universe covers broad equity ETFs, crypto, FX, and futures; it is a practical
+watchlist, not literally every instrument or exchange. Pass an explicit symbol list
+for wider coverage. Each result includes request latency, latest candle time, data
+age, and a stale flag. A failed or stale symbol must be excluded from strategy
+decisions rather than silently treated as current. Backtests
 use a long-only SMA crossover with no leverage, fees, or slippage yet; treat the
 metrics as research output, not a promise of future performance. The TypeSafe
 route is optional and requires `TYPESAFE_API_KEY` on the workbench server; the

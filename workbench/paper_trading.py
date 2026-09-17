@@ -33,7 +33,7 @@ class PaperAccount:
         self.orders = []
         return self.snapshot()
 
-    def order(self, symbol, side, quantity, price):
+    def order(self, symbol, side, quantity, price, data_lag_seconds=None, max_lag_seconds=None):
         symbol = str(symbol).strip().upper()
         side = str(side).strip().lower()
         quantity = float(quantity)
@@ -42,6 +42,8 @@ class PaperAccount:
             raise ValueError("symbol and side=buy|sell are required")
         if quantity <= 0 or price <= 0:
             raise ValueError("quantity and price must be positive")
+        if data_lag_seconds is not None and max_lag_seconds is not None and float(data_lag_seconds) > float(max_lag_seconds):
+            raise ValueError("stale market data: paper order rejected")
         value = quantity * price
         if value > self.max_order_value:
             raise ValueError(f"paper risk limit: order value exceeds {self.max_order_value:.2f}")
@@ -69,6 +71,7 @@ class PaperAccount:
             "quantity": quantity,
             "price": price,
             "value": round(value, 2),
+            "dataLagSeconds": round(float(data_lag_seconds), 3) if data_lag_seconds is not None else None,
             "status": "filled-paper",
         })
         return self.snapshot({symbol: price})

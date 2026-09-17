@@ -22,7 +22,7 @@ from urllib.parse import parse_qs, urlparse
 
 from memory_store import MemoryStore
 from backtest import run_sma_backtest
-from market_data import yahoo_candles
+from market_data import scan_universe, yahoo_candles
 from paper_trading import PaperAccount
 
 WORKBENCH_DIR = Path(__file__).resolve().parent
@@ -112,7 +112,16 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             elif parsed.path == "/api/trading/account":
                 json_response(self, 200, {"account": self.server.paper_account.snapshot()})
             elif parsed.path == "/api/trading/market-data":
-                data = yahoo_candles(query.get("symbol", [""])[0], query.get("period", ["6mo"])[0], query.get("interval", ["1d"])[0])
+                symbols = query.get("symbols", [""])[0]
+                if symbols:
+                    data = scan_universe(symbols.split(","), query.get("period", ["1mo"])[0], query.get("interval", ["1d"])[0], max_lag_seconds=query.get("maxLagSeconds", [None])[0])
+                else:
+                    data = yahoo_candles(query.get("symbol", [""])[0], query.get("period", ["6mo"])[0], query.get("interval", ["1d"])[0])
+                    data["stale"] = False
+                json_response(self, 200, data)
+            elif parsed.path == "/api/trading/market-scan":
+                symbols = query.get("symbols", [""])[0]
+                data = scan_universe(symbols.split(",") if symbols else None, query.get("period", ["1mo"])[0], query.get("interval", ["1d"])[0], max_lag_seconds=query.get("maxLagSeconds", [None])[0])
                 json_response(self, 200, data)
             elif parsed.path == "/api/skills":
                 json_response(self, 200, {"skills": load_json(SKILLS_PATH, [])})
@@ -247,7 +256,8 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 json_response(self, 202, {"action": action})
             elif parsed.path == "/api/trading/order":
                 account = self.server.paper_account.order(
-                    body.get("symbol", ""), body.get("side", ""), body.get("quantity", 0), body.get("price", 0)
+                    body.get("symbol", ""), body.get("side", ""), body.get("quantity", 0), body.get("price", 0),
+                    body.get("dataLagSeconds"), body.get("maxLagSeconds")
                 )
                 json_response(self, 200, {"account": account})
             elif parsed.path == "/api/trading/reset":
