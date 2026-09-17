@@ -90,7 +90,7 @@ POST /api/instances/{id}/stop
 POST /api/browser/open { "url": "https://example.com" }
 POST /api/sandbox/run { "image": "python:3.12", "command": "python --version" }
 POST /api/media/queue { "url": "http://127.0.0.1:8188/prompt", "payload": {} }
-GET  /api/trading/account
+GET  /api/trading/account?adapter=paper
 GET  /api/trading/risk
 POST /api/trading/order { "symbol": "AAPL", "side": "buy", "quantity": 1, "price": 100 }
 POST /api/trading/order { "symbol": "AAPL", "side": "buy", "quantity": 1, "price": 100, "dataLagSeconds": 420, "maxLagSeconds": 300 }
@@ -126,6 +126,13 @@ The adapter catalog currently contains `paper`, `alpaca`,
 capability contract. `paper` is enabled; the four external adapters are
 disabled and fail closed until their official paper APIs, server-side credential
 storage, market-data tests, and risk-gate integration are implemented.
+
+Alpaca is the first external adapter implementation and remains paper-only.
+Enable it only in the workbench server environment with
+`ALPACA_PAPER_TRADING=1`, `APCA_API_KEY_ID`, and `APCA_API_SECRET_KEY`. The
+adapter uses `https://paper-api.alpaca.markets`, submits market/day orders only,
+and never exposes credentials to the browser or model. Do not set these values
+with live Alpaca credentials.
 
 Market data is read-only and currently uses Yahoo Finance chart data. The default
 scan universe covers broad equity ETFs, crypto, FX, and futures; it is a practical

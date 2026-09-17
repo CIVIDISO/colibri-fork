@@ -112,7 +112,11 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             elif parsed.path == "/api/decisions":
                 json_response(self, 200, {"decisions": self.server.memory.list(str(self.root), 100)})
             elif parsed.path == "/api/trading/account":
-                json_response(self, 200, {"account": self.server.paper_account.snapshot()})
+                adapter_name = str(query.get("adapter", ["paper"])[0])
+                adapter = self.server.adapters.get(adapter_name)
+                if not adapter:
+                    raise ValueError("unknown broker adapter")
+                json_response(self, 200, {"adapter": adapter_name, "account": adapter.account()})
             elif parsed.path == "/api/trading/adapters":
                 json_response(self, 200, {"adapters": [adapter.capabilities() for adapter in self.server.adapters.values()]})
             elif parsed.path == "/api/trading/risk":
