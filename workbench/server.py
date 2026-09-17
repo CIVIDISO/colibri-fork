@@ -21,6 +21,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from memory_store import MemoryStore
+from paper_trading import PaperAccount
 
 WORKBENCH_DIR = Path(__file__).resolve().parent
 SKILLS_PATH = WORKBENCH_DIR / "skills.json"
@@ -106,6 +107,8 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 json_response(self, 200, {"ok": True, "project": str(self.root), "files": len(list_files(self.root))})
             elif parsed.path == "/api/decisions":
                 json_response(self, 200, {"decisions": self.server.memory.list(str(self.root), 100)})
+            elif parsed.path == "/api/trading/account":
+                json_response(self, 200, {"account": self.server.paper_account.snapshot()})
             elif parsed.path == "/api/skills":
                 json_response(self, 200, {"skills": load_json(SKILLS_PATH, [])})
             elif parsed.path == "/api/providers":
@@ -237,6 +240,13 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                           "payload": payload, "status": "pending", "project": str(self.root)}
                 self.server.actions[action["id"]] = action
                 json_response(self, 202, {"action": action})
+            elif parsed.path == "/api/trading/order":
+                account = self.server.paper_account.order(
+                    body.get("symbol", ""), body.get("side", ""), body.get("quantity", 0), body.get("price", 0)
+                )
+                json_response(self, 200, {"account": account})
+            elif parsed.path == "/api/trading/reset":
+                json_response(self, 200, {"account": self.server.paper_account.reset()})
             elif parsed.path == "/api/instances":
                 instance = {"id": str(body.get("id") or "instance-" + uuid.uuid4().hex[:8]),
                             "project": str(Path(body.get("project", self.root)).expanduser().resolve()),
@@ -337,6 +347,7 @@ def main():
     server.model = args.model
     server.api_key = args.api_key
     server.memory = MemoryStore(WORKBENCH_DIR / "state")
+    server.paper_account = PaperAccount()
     server.graph_root = WORKBENCH_DIR.parent
     server.actions = {}
     server.instances = {}

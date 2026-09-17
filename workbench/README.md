@@ -90,6 +90,9 @@ POST /api/instances/{id}/stop
 POST /api/browser/open { "url": "https://example.com" }
 POST /api/sandbox/run { "image": "python:3.12", "command": "python --version" }
 POST /api/media/queue { "url": "http://127.0.0.1:8188/prompt", "payload": {} }
+GET  /api/trading/account
+POST /api/trading/order { "symbol": "AAPL", "side": "buy", "quantity": 1, "price": 100 }
+POST /api/trading/reset
 ```
 
 Terminal actions are pending until explicitly approved. Browser, Docker/VM,
@@ -97,6 +100,11 @@ Docker/VM, and ComfyUI adapters also return pending actions and never execute
 until `/api/actions/{id}/approve` is called. `workbench/mcp_server.py` exposes
 read-only project status, memory, and Graphify tools over MCP stdio for clients
 that support MCP.
+
+Paper trading is deterministic local simulation only: `$100,000` starting cash,
+`$5,000` maximum order value, no shorting, no broker credentials, no withdrawals,
+and no live orders. Use it for strategy experiments and backtests before any
+separate broker integration is considered.
 
 ## Design boundary
 
