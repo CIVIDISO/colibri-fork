@@ -121,6 +121,12 @@ loss limit. Future broker adapters must call this same gate before submitting an
 external order. The current release intentionally contains no live broker
 submission or autonomous money movement.
 
+The adapter catalog currently contains `paper`, `alpaca`,
+`interactive-brokers`, `futures`, and `crypto`. Each adapter exposes the same
+capability contract. `paper` is enabled; the four external adapters are
+disabled and fail closed until their official paper APIs, server-side credential
+storage, market-data tests, and risk-gate integration are implemented.
+
 Market data is read-only and currently uses Yahoo Finance chart data. The default
 scan universe covers broad equity ETFs, crypto, FX, and futures; it is a practical
 watchlist, not literally every instrument or exchange. Pass an explicit symbol list

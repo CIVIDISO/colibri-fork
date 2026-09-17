@@ -22,6 +22,7 @@ from urllib.parse import parse_qs, urlparse
 
 from memory_store import MemoryStore
 from backtest import run_sma_backtest
+from broker_adapters import OrderRequest, adapter_catalog
 from market_data import scan_universe, yahoo_candles
 from paper_trading import PaperAccount
 from risk_engine import RiskEngine
@@ -112,6 +113,8 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 json_response(self, 200, {"decisions": self.server.memory.list(str(self.root), 100)})
             elif parsed.path == "/api/trading/account":
                 json_response(self, 200, {"account": self.server.paper_account.snapshot()})
+            elif parsed.path == "/api/trading/adapters":
+                json_response(self, 200, {"adapters": [adapter.capabilities() for adapter in self.server.adapters.values()]})
             elif parsed.path == "/api/trading/risk":
                 account = self.server.paper_account.snapshot()
                 json_response(self, 200, {"risk": account["risk"]})
@@ -259,11 +262,15 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 self.server.actions[action["id"]] = action
                 json_response(self, 202, {"action": action})
             elif parsed.path == "/api/trading/order":
-                account = self.server.paper_account.order(
-                    body.get("symbol", ""), body.get("side", ""), body.get("quantity", 0), body.get("price", 0),
-                    body.get("dataLagSeconds"), body.get("maxLagSeconds")
+                adapter_name = str(body.get("adapter", "paper"))
+                adapter = self.server.adapters.get(adapter_name)
+                if not adapter:
+                    raise ValueError("unknown broker adapter")
+                order = OrderRequest(
+                    str(body.get("symbol", "")), str(body.get("side", "")), float(body.get("quantity", 0)),
+                    float(body.get("price", 0)), body.get("dataLagSeconds"), body.get("maxLagSeconds")
                 )
-                json_response(self, 200, {"account": account})
+                json_response(self, 200, {"adapter": adapter_name, "account": adapter.submit_order(order)})
             elif parsed.path == "/api/trading/reset":
                 json_response(self, 200, {"account": self.server.paper_account.reset()})
             elif parsed.path == "/api/trading/backtest":
@@ -377,6 +384,7 @@ def main():
     server.api_key = args.api_key
     server.memory = MemoryStore(WORKBENCH_DIR / "state")
     server.paper_account = PaperAccount()
+    server.adapters = adapter_catalog(server.paper_account)
     server.graph_root = WORKBENCH_DIR.parent
     server.actions = {}
     server.instances = {}
