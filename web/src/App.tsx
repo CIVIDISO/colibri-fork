@@ -193,7 +193,7 @@ function DashboardApp() {
       } catch (cause) {
         if (!controller.signal.aborted) {
           setHealth(null)
-          setHealthError(cause instanceof Error ? cause.message : "status.runtimeUnavailable")
+          setHealthError(baseUrl.includes(":11434") ? "" : cause instanceof Error ? cause.message : "status.runtimeUnavailable")
         }
       }
     } catch (cause) {
@@ -203,6 +203,14 @@ function DashboardApp() {
     } finally {
       if (probeRef.current === controller) { probeRef.current = null; setConnecting(false) }
     }
+  }
+
+  const selectProvider = (nextBaseUrl: string, nextModel: string) => {
+    setBaseUrl(nextBaseUrl)
+    setModel(nextModel)
+    setConnected(false)
+    setHealth(null)
+    setHealthError("")
   }
 
   // Auto-connect once when the UI is served by the engine itself. In an
@@ -310,6 +318,10 @@ function DashboardApp() {
           <div className="section-title"><Link2 className="size-3.5" /> {t("sidebar.connection")}</div>
           <label>{t("sidebar.endpoint")}<Input value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} /></label>
           <label>{t("sidebar.apiKey")}<div className="relative"><KeyRound className="field-icon" /><Input className="pl-9" type="password" value={apiKey} placeholder={t("sidebar.apiKeyPlaceholder")} onChange={(event) => setApiKey(event.target.value)} /></div><span className="field-help">{t("sidebar.apiKeyHelp")}</span></label>
+          <div className="provider-presets">
+            <Button type="button" variant="secondary" onClick={() => selectProvider("http://127.0.0.1:11434/v1", "qwen2.5-coder:7b")}>GPU fast</Button>
+            <Button type="button" variant="secondary" onClick={() => selectProvider("http://127.0.0.1:8000/v1", "qwen3.6-colibri")}>Colibri deep</Button>
+          </div>
           <Button type="button" variant="secondary" onClick={connect} disabled={connecting}>
             {connecting ? <LoaderCircle className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
             {t("sidebar.probe")}
