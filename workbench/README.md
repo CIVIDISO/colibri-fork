@@ -91,6 +91,7 @@ POST /api/browser/open { "url": "https://example.com" }
 POST /api/sandbox/run { "image": "python:3.12", "command": "python --version" }
 POST /api/media/queue { "url": "http://127.0.0.1:8188/prompt", "payload": {} }
 GET  /api/trading/account
+GET  /api/trading/risk
 POST /api/trading/order { "symbol": "AAPL", "side": "buy", "quantity": 1, "price": 100 }
 POST /api/trading/order { "symbol": "AAPL", "side": "buy", "quantity": 1, "price": 100, "dataLagSeconds": 420, "maxLagSeconds": 300 }
 POST /api/trading/reset
@@ -113,6 +114,12 @@ separate broker integration is considered.
 
 Orders may include `dataLagSeconds` and `maxLagSeconds`; when the observed quote
 age exceeds the allowed maximum, the paper order is rejected as stale.
+
+The risk gate also rejects orders above the configured order or position value,
+short sales, symbols outside an optional allowlist, and orders after the daily
+loss limit. Future broker adapters must call this same gate before submitting an
+external order. The current release intentionally contains no live broker
+submission or autonomous money movement.
 
 Market data is read-only and currently uses Yahoo Finance chart data. The default
 scan universe covers broad equity ETFs, crypto, FX, and futures; it is a practical

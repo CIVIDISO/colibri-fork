@@ -24,6 +24,7 @@ from memory_store import MemoryStore
 from backtest import run_sma_backtest
 from market_data import scan_universe, yahoo_candles
 from paper_trading import PaperAccount
+from risk_engine import RiskEngine
 
 WORKBENCH_DIR = Path(__file__).resolve().parent
 SKILLS_PATH = WORKBENCH_DIR / "skills.json"
@@ -111,6 +112,9 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 json_response(self, 200, {"decisions": self.server.memory.list(str(self.root), 100)})
             elif parsed.path == "/api/trading/account":
                 json_response(self, 200, {"account": self.server.paper_account.snapshot()})
+            elif parsed.path == "/api/trading/risk":
+                account = self.server.paper_account.snapshot()
+                json_response(self, 200, {"risk": account["risk"]})
             elif parsed.path == "/api/trading/market-data":
                 symbols = query.get("symbols", [""])[0]
                 if symbols:

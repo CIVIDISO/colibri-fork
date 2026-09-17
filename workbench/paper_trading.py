@@ -2,11 +2,17 @@
 
 from datetime import datetime, timezone
 
+try:
+    from .risk_engine import RiskEngine
+except ImportError:
+    from risk_engine import RiskEngine
+
 
 class PaperAccount:
     def __init__(self, starting_cash=100_000.0, max_order_value=5_000.0):
         self.starting_cash = float(starting_cash)
         self.max_order_value = float(max_order_value)
+        self.risk = RiskEngine(starting_cash, max_order_value=max_order_value)
         self.cash = self.starting_cash
         self.positions = {}
         self.orders = []
@@ -25,12 +31,14 @@ class PaperAccount:
             "maxOrderValue": round(self.max_order_value, 2),
             "positions": self.positions,
             "orders": self.orders[-100:],
+            "risk": self.risk.snapshot(self.cash + position_value),
         }
 
     def reset(self):
         self.cash = self.starting_cash
         self.positions = {}
         self.orders = []
+        self.risk = RiskEngine(self.starting_cash, max_order_value=self.max_order_value)
         return self.snapshot()
 
     def order(self, symbol, side, quantity, price, data_lag_seconds=None, max_lag_seconds=None):
@@ -45,8 +53,10 @@ class PaperAccount:
         if data_lag_seconds is not None and max_lag_seconds is not None and float(data_lag_seconds) > float(max_lag_seconds):
             raise ValueError("stale market data: paper order rejected")
         value = quantity * price
-        if value > self.max_order_value:
-            raise ValueError(f"paper risk limit: order value exceeds {self.max_order_value:.2f}")
+        equity = self.cash + sum(item["quantity"] * item["averagePrice"] for item in self.positions.values())
+        check = self.risk.check_order(symbol, side, quantity, price, self.positions, equity, data_lag_seconds, max_lag_seconds)
+        if not check["allowed"]:
+            raise ValueError(f"paper risk limit: {check['reason']}")
         position = self.positions.get(symbol, {"quantity": 0.0, "averagePrice": price})
         if side == "buy":
             if value > self.cash:
